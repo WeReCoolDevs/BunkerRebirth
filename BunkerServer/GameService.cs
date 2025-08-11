@@ -1,60 +1,79 @@
 using System.Net;
 using System.Net.Sockets;
-using System.Text;
+using System.Numerics;
 
-var udp = new UdpClient(9000);
-Console.WriteLine("UDP server started on port 9000");
-
-while (true)
+public class GameUdpService : IHostedService, IDisposable
 {
-    var result = await udp.ReceiveAsync();
-    string message = Encoding.UTF8.GetString(result.Buffer);
-    Console.WriteLine($"Received: {message} from {result.RemoteEndPoint}");
+    private readonly ILogger<GameUdpService> _logger;
+    private UdpClient _udp;
+    private int _port;
+    private bool _running;
 
-    string reply = "I have changed your position!";
-    byte[] replyData = Encoding.UTF8.GetBytes(reply);
-    await udp.SendAsync(replyData, replyData.Length, result.RemoteEndPoint);
+    public GameUdpService(ILogger<GameUdpService> logger)
+    {
+        _logger = logger;
+        _port = 9000;
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _udp = new UdpClient(_port);
+        _logger.LogInformation($"Listening on UDP port {_port}");
+
+        _running = true;
+        _udp.BeginReceive(OnReceive, null);
+
+        return Task.CompletedTask;
+    }
+
+    private void OnReceive(IAsyncResult ar)
+    {
+        if (!_running) return;
+
+        try
+        {
+            IPEndPoint clientEP = new IPEndPoint(IPAddress.Any, 0);
+            byte[] data = _udp.EndReceive(ar, ref clientEP);
+
+            Vector2 movement = BytesToVector2(data);
+            _logger.LogInformation($"Received from {clientEP}: {movement}");
+
+            // TODO: Process movement, update positions, send response
+
+
+            if (_running)
+                _udp.BeginReceive(OnReceive, null);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Socket closed, ignore
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in UDP receive");
+            if (_running)
+                _udp.BeginReceive(OnReceive, null);
+        }
+    }
+
+    private Vector2 BytesToVector2(byte[] bytes)
+    {
+        float x = BitConverter.ToSingle(bytes, 0);
+        float y = BitConverter.ToSingle(bytes, 4);
+        return new Vector2(x, y);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Stopping UDP listener");
+        _running = false;
+        _udp?.Close();
+        //_udp = null;
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        _udp?.Dispose();
+    }
 }
-
-
-//var builder = WebApplication.CreateBuilder(args);
-
-//// Add services to the container.
-//// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-//builder.Services.AddOpenApi();
-
-//var app = builder.Build();
-
-//// Configure the HTTP request pipeline.
-//if (app.Environment.IsDevelopment())
-//{
-//    app.MapOpenApi();
-//}
-
-//app.UseHttpsRedirection();
-
-//var summaries = new[]
-//{
-//    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-//};
-
-//app.MapGet("/weatherforecast", () =>
-//{
-//    var forecast =  Enumerable.Range(1, 5).Select(index =>
-//        new WeatherForecast
-//        (
-//            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-//            Random.Shared.Next(-20, 55),
-//            summaries[Random.Shared.Next(summaries.Length)]
-//        ))
-//        .ToArray();
-//    return forecast;
-//})
-//.WithName("GetWeatherForecast");
-
-//app.Run();
-
-//record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-//{
-//    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-//}

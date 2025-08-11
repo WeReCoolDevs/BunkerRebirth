@@ -1,6 +1,16 @@
-[gd_scene load_steps=2 format=3 uid="uid://hs06pn600d67"]
+[gd_scene load_steps=4 format=3 uid="uid://hs06pn600d67"]
 
 [ext_resource type="Script" uid="uid://dh3e866iqo66f" path="res://GameScreen.cs" id="1_t5odh"]
+[ext_resource type="Script" uid="uid://dqknh4x7nlqww" path="res://Player.cs" id="2_xwjjp"]
+[ext_resource type="Script" uid="uid://dytdy2r1hm18l" path="res://NetworkManager.cs" id="3_norob"]
 
 [node name="GameScreen" type="Node2D"]
 script = ExtResource("1_t5odh")
+
+[node name="Player" type="Node2D" parent="."]
+script = ExtResource("2_xwjjp")
+
+[node name="Sprite2D" type="Sprite2D" parent="Player"]
+
+[node name="NetworkManager" type="Node2D" parent="."]
+script = ExtResource("3_norob")
